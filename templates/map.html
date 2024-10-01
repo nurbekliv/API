@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>OpenStreetMap Example</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+    <style>
+        #map { height: 400px; }
+    </style>
+</head>
+<body>
+    <h1>OpenStreetMap with Leaflet</h1>
+    <div id="map"></div>
+    <form method="post" id="addressForm">
+        <input type="text" name="shipping_address" id="shipping_address" placeholder="Shipping Address" required>
+        <input type="hidden" name="latitude" id="latitude">
+        <input type="hidden" name="longitude" id="longitude">
+        <button type="submit">Save Address</button>
+    </form>
+
+    <script>
+        // Amir Temur xiyoboni koordinatalari
+        const map = L.map('map').setView([41.3111, 69.2741], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+        }).addTo(map);
+
+        // Qidiruv tizimini qo'shish
+        const geocoder = L.Control.Geocoder.nominatim();
+        const searchControl = new L.Control.Geocoder({ collapsed: false })
+            .on('markgeocode', function(e) {
+                const latlng = e.geocode.center;
+                if (marker) {
+                    map.removeLayer(marker);
+                }
+                marker = L.marker(latlng).addTo(map);
+                map.setView(latlng, 15);
+                document.getElementById('latitude').value = latlng.lat;
+                document.getElementById('longitude').value = latlng.lng;
+                document.getElementById('shipping_address').value = e.geocode.name;
+            })
+            .addTo(map);
+
+        let marker;
+
+        map.on('click', function(e) {
+            // Agar oldingi marker bo'lsa, uni o'chiring
+            if (marker) {
+                map.removeLayer(marker);
+            }
+            // Yangi marker qo'shish
+            marker = L.marker(e.latlng).addTo(map);
+            document.getElementById('latitude').value = e.latlng.lat;
+            document.getElementById('longitude').value = e.latlng.lng;
+
+            // Geocoding orqali manzilni olish
+            getAddress(e.latlng);
+        });
+
+        function getAddress(latLng) {
+            const geocoder = new L.Control.Geocoder.Nominatim();
+            geocoder.reverse(latLng, map.options.crs.scale(map.getZoom()), function(results) {
+                if (results.length > 0) {
+                    document.getElementById('shipping_address').value = results[0].display_name;
+                }
+            });
+        }
+
+        document.getElementById('addressForm').addEventListener('submit', function(e) {
+            e.preventDefault(); // Formani yuborishni to'xtatish
+
+            const formData = new FormData(this);
+
+            fetch('/your-endpoint-url/', { // Django view URLini qo'ying
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}' // CSRF tokenni yuborish
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Success:', data);
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
+        });
+    </script>
+</body>
+</html>
